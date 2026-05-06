@@ -274,12 +274,17 @@ async function loadSample(voicePath, filename) {
   if (audioCache[url]) return audioCache[url];
   try {
     const res = await fetch(url);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn('404:', url);
+      return null;
+    }
+    console.log('Loaded:', url);
     const buf = await res.arrayBuffer();
     const decoded = await getAudioCtx().decodeAudioData(buf);
     audioCache[url] = decoded;
     return decoded;
-  } catch {
+  } catch(e) {
+    console.error('Error loading:', url, e);
     return null;
   }
 }
@@ -295,9 +300,12 @@ async function playTokens(tokens, voicePath, speed, pitch) {
 
   // Pre-load all samples
   setStatus('Loading samples…', false);
+  console.log('Tokens:', tokens);
   const buffers = await Promise.all(
     tokens.map(t => (t.type === 'kana' || t.type === 'english') ? loadSample(voicePath, t.file) : Promise.resolve(null))
   );
+  console.log('Buffers loaded:', buffers.filter(Boolean).length, '/', buffers.length);
+  console.log('AudioCtx state:', getAudioCtx().state);
 
   setStatus('Playing…', true);
   setPlaying(true);
