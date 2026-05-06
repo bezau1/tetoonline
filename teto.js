@@ -256,9 +256,21 @@ const audioCache = {};
 
 async function loadSample(voicePath, filename) {
   // English files already have full filename like _ka+_ka+_k-
+  // Extra voicebank uses _x prefix: _xか.wav
   // Japanese files need _prefix added: あ → _あ
-  const isEnglish = filename.startsWith('_');
-  const url = voicePath + (isEnglish ? filename : '_' + filename) + '.wav';
+  const isEnglish = filename.startsWith('_') && filename.includes('+');
+  const isFullPath = filename.startsWith('_') && !filename.includes('+');
+  
+  let url;
+  if (isFullPath) {
+    url = voicePath + filename + '.wav';
+  } else if (isEnglish) {
+    url = voicePath + filename + '.wav';
+  } else {
+    url = voicePath + '_' + filename + '.wav';
+  }
+  
+  // Try the url, if 404 try with _x prefix (extra bank)
   if (audioCache[url]) return audioCache[url];
   try {
     const res = await fetch(url);
