@@ -192,6 +192,8 @@ function englishTextToTokens(text) {
 }
 
 // ─── Audio context ────────────────────────────────────────────────────────────
+// ─── Audio context ────────────────────────────────────────────────────────────
+let audioCtx = null;
 function getAudioCtx() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   return audioCtx;
