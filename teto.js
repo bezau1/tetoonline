@@ -339,7 +339,76 @@ async function playTokens(tokens, voicePath, speed, pitch) {
   await new Promise(r => setTimeout(r, totalDuration + 200));
 
   setPlaying(false);
-  if (!stopRequested) setStatus('Done ✓', false);
+  if (!stopRequested) {
+    setStatus('Done ✓', false);
+    // Render to downloadable wav
+    if (!stopRequested) renderAndEnableDownload(tokens, buffers, speed, pitch);
+  }
+}
+
+async function renderAndEnableDownload(tokens, buffers, speed, pitch) {
+  // Calculate total duration
+  let totalDur = 0;
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token.type === 'pause') { totalDur += token.duration / speed; continue; }
+    const buf = buffers[i];
+    if (buf) totalDur += Math.max((buf.duration / (speed * pitch)) * 0.85, 0.05);
+  }
+  totalDur += 0.3;
+
+  const sampleRate = 44100;
+  const offlineCtx = new OfflineAudioContext(1, Math.ceil(totalDur * sampleRate), sampleRate);
+  let time = 0.05;
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token.type === 'pause') { time += token.duration / speed; continue; }
+    const buf = buffers[i];
+    if (!buf) continue;
+    const src = offlineCtx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = speed * pitch;
+    src.connect(offlineCtx.destination);
+    src.start(time);
+    time += Math.max((buf.duration / (speed * pitch)) * 0.85, 0.05);
+  }
+
+  const rendered = await offlineCtx.startRendering();
+  const wavBlob = audioBufferToWav(rendered);
+  const url = URL.createObjectURL(wavBlob);
+
+  const btn = document.getElementById('downloadBtn');
+  btn.href = url;
+  btn.download = 'teto.wav';
+  btn.style.display = 'inline-block';
+}
+
+function audioBufferToWav(buffer) {
+  const numChannels = 1;
+  const sampleRate = buffer.sampleRate;
+  const data = buffer.getChannelData(0);
+  const length = data.length;
+  const arrayBuf = new ArrayBuffer(44 + length * 2);
+  const view = new DataView(arrayBuf);
+  const writeStr = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + length * 2, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, 'data');
+  view.setUint32(40, length * 2, true);
+  for (let i = 0; i < length; i++) {
+    view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, data[i])) * 0x7FFF, true);
+  }
+  return new Blob([arrayBuf], { type: 'audio/wav' });
 }
 
 function stopAll() {
@@ -396,6 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('speakBtn').addEventListener('click', async () => {
     const text = document.getElementById('textInput').value.trim();
     if (!text) { setStatus('Type something first!', false); return; }
+    document.getElementById('downloadBtn').style.display = 'none';
 
     const tokens = selectedVoice === 'english' ? englishTextToTokens(text) : textToTokens(text);
     if (!tokens.length) { setStatus('No recognizable phonemes found', false); return; }
