@@ -309,6 +309,12 @@ async function playTokens(tokens, voicePath, speed, pitch) {
   console.log('Buffers loaded:', buffers.filter(Boolean).length, '/', buffers.length);
   console.log('AudioCtx state:', getAudioCtx().state);
 
+  if (!buffers.filter(Boolean).length) {
+    setStatus('No samples loaded — check voices/ folder', false);
+    setPlaying(false);
+    return;
+  }
+
   setStatus('Playing…', true);
   setPlaying(true);
 
@@ -473,6 +479,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Speak button
   document.getElementById('speakBtn').addEventListener('click', async () => {
+    // Resume audio context immediately on user gesture
+    const ctx = getAudioCtx();
+    if (ctx.state === 'suspended') await ctx.resume();
+    console.log('AudioCtx state after resume:', ctx.state);
+
     const text = document.getElementById('textInput').value.trim();
     if (!text) { setStatus('Type something first!', false); return; }
     document.getElementById('downloadBtn').style.display = 'none';
